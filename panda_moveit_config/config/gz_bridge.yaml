@@ -1,0 +1,66 @@
+# ros_gz_bridge configuration for bridging Gazebo topics to ROS 2
+
+# DetachableJoint attach/detach for blue_box
+- ros_topic_name: /blue_box/attach
+  gz_topic_name: /blue_box/attach
+  ros_type_name: std_msgs/msg/Empty
+  gz_type_name: gz.msgs.Empty
+  direction: ROS_TO_GZ
+
+- ros_topic_name: /blue_box/detach
+  gz_topic_name: /blue_box/detach
+  ros_type_name: std_msgs/msg/Empty
+  gz_type_name: gz.msgs.Empty
+  direction: ROS_TO_GZ
+
+# DetachableJoint attach/detach for red_box
+- ros_topic_name: /red_box/attach
+  gz_topic_name: /red_box/attach
+  ros_type_name: std_msgs/msg/Empty
+  gz_type_name: gz.msgs.Empty
+  direction: ROS_TO_GZ
+
+- ros_topic_name: /red_box/detach
+  gz_topic_name: /red_box/detach
+  ros_type_name: std_msgs/msg/Empty
+  gz_type_name: gz.msgs.Empty
+  direction: ROS_TO_GZ
+
+# DetachableJoint attach/detach for green_box
+- ros_topic_name: /green_box/attach
+  gz_topic_name: /green_box/attach
+  ros_type_name: std_msgs/msg/Empty
+  gz_type_name: gz.msgs.Empty
+  direction: ROS_TO_GZ
+
+- ros_topic_name: /green_box/detach
+  gz_topic_name: /green_box/detach
+  ros_type_name: std_msgs/msg/Empty
+  gz_type_name: gz.msgs.Empty
+  direction: ROS_TO_GZ
+
+# Per-model pose bridge (named, reliable)
+- ros_topic_name: /gz/blue_box/pose
+  gz_topic_name: /model/blue_box/pose
+  ros_type_name: geometry_msgs/msg/Pose
+  gz_type_name: gz.msgs.Pose
+  direction: GZ_TO_ROS
+
+- ros_topic_name: /gz/red_box/pose
+  gz_topic_name: /model/red_box/pose
+  ros_type_name: geometry_msgs/msg/Pose
+  gz_type_name: gz.msgs.Pose
+  direction: GZ_TO_ROS
+
+- ros_topic_name: /gz/green_box/pose
+  gz_topic_name: /model/green_box/pose
+  ros_type_name: geometry_msgs/msg/Pose
+  gz_type_name: gz.msgs.Pose
+  direction: GZ_TO_ROS
+
+
+# - ros_topic_name: /wrist_camera/points
+#   gz_topic_name: /wrist_camera/points
+#   ros_type_name: sensor_msgs/msg/PointCloud2
+#   gz_type_name: gz.msgs.PointCloudPacked
+#   direction: GZ_TO_ROS
