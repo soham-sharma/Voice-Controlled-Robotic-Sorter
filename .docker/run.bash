@@ -106,7 +106,10 @@ GUI_ENVS=(
 AUDIO_VOLUMES=()
 AUDIO_ENVS=()
 
-if [ -n "${XDG_RUNTIME_DIR}" ] && [ -S "${XDG_RUNTIME_DIR}/pulse/native" ]; then
+if [ -d "/mnt/wslg" ]; then
+    AUDIO_VOLUMES+=("/mnt/wslg:/mnt/wslg")
+    AUDIO_ENVS+=("PULSE_SERVER=unix:/mnt/wslg/PulseServer")
+elif [ -n "${XDG_RUNTIME_DIR}" ] && [ -S "${XDG_RUNTIME_DIR}/pulse/native" ]; then
     AUDIO_VOLUMES+=("${XDG_RUNTIME_DIR}/pulse/native:${XDG_RUNTIME_DIR}/pulse/native")
     AUDIO_ENVS+=("PULSE_SERVER=unix:${XDG_RUNTIME_DIR}/pulse/native")
     if [ -f "${HOME}/.config/pulse/cookie" ]; then
