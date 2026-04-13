@@ -14,6 +14,7 @@ WORKDIR ${WS_DIR}
 
 ### Install Gazebo, graphics libraries, GPD, and VNC for remote display
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -yq --no-install-recommends \
     ros-${ROS_DISTRO}-ros-gz \
     ros-${ROS_DISTRO}-py-trees-ros-viewer \
@@ -32,8 +33,22 @@ RUN apt-get update && \
     tigervnc-standalone-server \
     tigervnc-tools \
     openbox \
-    xterm && \
+    xterm \
+    python3-pip \
+    alsa-utils \
+    pulseaudio-utils \
+    libasound2-plugins \
+    libportaudio2 \
+    espeak \
+    python3-pyaudio && \
     rm -rf /var/lib/apt/lists/*
+
+### Install Python audio libraries and pre-download Vosk model
+RUN pip3 install --break-system-packages vosk sounddevice pyttsx3 && \
+    python3 -c "from vosk import Model; Model(lang='en-us')"
+
+### Route ALSA to PulseAudio
+RUN echo -e "pcm.!default {\n    type pulse\n}\nctl.!default {\n    type pulse\n}" > /etc/asound.conf
 
 ### NVIDIA environment variables for graphics
 ENV NVIDIA_VISIBLE_DEVICES=all
@@ -62,8 +77,8 @@ RUN rosdep update && \
 
 ### Pre-configure GPD so students can build with one command
 RUN cmake -S ${WS_SRC_DIR}/panda_gz_moveit2/deps/gpd \
-          -B ${WS_SRC_DIR}/panda_gz_moveit2/deps/gpd/build \
-          -DCMAKE_BUILD_TYPE=Release
+    -B ${WS_SRC_DIR}/panda_gz_moveit2/deps/gpd/build \
+    -DCMAKE_BUILD_TYPE=Release
 
 ### Add workspace to the ROS entrypoint
 ### Source ROS workspace inside `~/.bashrc` to enable autocompletion
