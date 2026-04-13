@@ -47,8 +47,17 @@ RUN apt-get update && \
 RUN pip3 install --break-system-packages vosk sounddevice pyttsx3 && \
     python3 -c "from vosk import Model; Model(lang='en-us')"
 
+# ### Route ALSA to PulseAudio
+# RUN echo -e "pcm.!default {\n    type pulse\n}\nctl.!default {\n    type pulse\n}" > /etc/asound.conf
 ### Route ALSA to PulseAudio
-RUN echo -e "pcm.!default {\n    type pulse\n}\nctl.!default {\n    type pulse\n}" > /etc/asound.conf
+RUN echo -e 'pcm.!default { \n\
+    type pulse \n\
+    fallback "sysdefault" \n\
+    } \n\
+    ctl.!default { \n\
+    type pulse \n\
+    fallback "sysdefault" \n\
+    }' > /etc/asound.conf
 
 ### NVIDIA environment variables for graphics
 ENV NVIDIA_VISIBLE_DEVICES=all

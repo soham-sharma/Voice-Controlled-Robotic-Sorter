@@ -102,6 +102,22 @@ GUI_ENVS=(
     DISPLAY="${DISPLAY}"
 )
 
+## Audio
+AUDIO_VOLUMES=()
+AUDIO_ENVS=()
+
+if [ -n "${XDG_RUNTIME_DIR}" ] && [ -S "${XDG_RUNTIME_DIR}/pulse/native" ]; then
+    AUDIO_VOLUMES+=("${XDG_RUNTIME_DIR}/pulse/native:${XDG_RUNTIME_DIR}/pulse/native")
+    AUDIO_ENVS+=("PULSE_SERVER=unix:${XDG_RUNTIME_DIR}/pulse/native")
+    if [ -f "${HOME}/.config/pulse/cookie" ]; then
+        AUDIO_VOLUMES+=("${HOME}/.config/pulse/cookie:/root/.config/pulse/cookie:ro")
+    fi
+fi
+
+if [ -d "/dev/snd" ]; then
+    AUDIO_VOLUMES+=("/dev/snd:/dev/snd")
+fi
+
 ## Additional volumes
 # Synchronize timezone with host (Linux only - macOS handles this differently)
 if [[ "$(uname)" == "Linux" && -f "/etc/localtime" ]]; then
@@ -149,6 +165,13 @@ for vol in "${GUI_VOLUMES[@]}"; do
 done
 # Add GUI environment variables
 for env in "${GUI_ENVS[@]}"; do
+    DOCKER_RUN_CMD+=("--env" "${env}")
+done
+# Add Audio volumes and env variables
+for vol in "${AUDIO_VOLUMES[@]:-}"; do
+    DOCKER_RUN_CMD+=("--volume" "${vol}")
+done
+for env in "${AUDIO_ENVS[@]:-}"; do
     DOCKER_RUN_CMD+=("--env" "${env}")
 done
 # Add GPU options only if set
