@@ -334,5 +334,225 @@
       </joint>
     </model>
 
+    <!-- Sorting Objects (graspable, fixed poses) -->
+    <model name="red_step_block">
+      <pose>0.58 0.16 0.35 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.12</mass>
+          <inertia>
+            <ixx>0.00035</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00042</iyy>
+            <iyz>0</iyz>
+            <izz>0.00028</izz>
+          </inertia>
+        </inertial>
+
+        <- Introduced baseline training script for fine-tuning GPT-2 on PubMed Lower stage -->
+        <collision name="lower_collision">
+          <pose>0 0 -0.04 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.06 0.04 0.08</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>40.0</mu>
+                <mu2>40.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="lower_visual">
+          <pose>0 0 -0.04 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.06 0.04 0.08</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.75 0.08 0.08 1</ambient>
+            <diffuse>0.75 0.08 0.08 1</diffuse>
+            <specular>0.25 0.05 0.05 1</specular>
+          </material>
+        </visual>
+
+        <- Introduced baseline training script for fine-tuning GPT-2 on PubMed Upper stage (offset to create a stepped profile) -->
+        <collision name="upper_collision">
+          <pose>0.01 0 0.04 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.04 0.04 0.08</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>40.0</mu>
+                <mu2>40.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="upper_visual">
+          <pose>0.01 0 0.04 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.04 0.04 0.08</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.88 0.18 0.18 1</ambient>
+            <diffuse>0.88 0.18 0.18 1</diffuse>
+            <specular>0.25 0.05 0.05 1</specular>
+          </material>
+        </visual>
+      </link>
+      <plugin filename="gz-sim-pose-publisher-system"
+              name="gz::sim::systems::PosePublisher">
+        <publish_link_pose>false</publish_link_pose>
+        <publish_model_pose>true</publish_model_pose>
+        <update_frequency>60</update_frequency>
+      </plugin>
+    </model>
+
+    <model name="blue_cuboid">
+      <pose>0.56 -0.02 0.36 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.09</mass>
+          <inertia>
+            <ixx>0.00026</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00026</iyy>
+            <iyz>0</iyz>
+            <izz>0.000035</izz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.056 0.056 0.18</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>45.0</mu>
+                <mu2>45.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.056 0.056 0.18</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.10 0.15 0.80 1</ambient>
+            <diffuse>0.10 0.15 0.80 1</diffuse>
+            <specular>0.10 0.15 0.80 1</specular>
+          </material>
+        </visual>
+      </link>
+      <plugin filename="gz-sim-pose-publisher-system"
+              name="gz::sim::systems::PosePublisher">
+        <publish_link_pose>false</publish_link_pose>
+        <publish_model_pose>true</publish_model_pose>
+        <update_frequency>60</update_frequency>
+      </plugin>
+    </model>
+
+    <model name="green_cross_block">
+      <pose>0.54 -0.20 0.34 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.11</mass>
+          <inertia>
+            <ixx>0.00032</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00032</iyy>
+            <iyz>0</iyz>
+            <izz>0.00029</izz>
+          </inertia>
+        </inertial>
+
+        <- Introduced baseline training script for fine-tuning GPT-2 on PubMed Cross profile from two intersecting bars -->
+        <collision name="x_arm_collision">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.065 0.03 0.14</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>40.0</mu>
+                <mu2>40.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <collision name="y_arm_collision">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.03 0.065 0.14</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>40.0</mu>
+                <mu2>40.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+
+        <visual name="x_arm_visual">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.065 0.03 0.14</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.08 0.65 0.18 1</ambient>
+            <diffuse>0.08 0.65 0.18 1</diffuse>
+            <specular>0.08 0.65 0.18 1</specular>
+          </material>
+        </visual>
+        <visual name="y_arm_visual">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.03 0.065 0.14</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.10 0.80 0.22 1</ambient>
+            <diffuse>0.10 0.80 0.22 1</diffuse>
+            <specular>0.10 0.80 0.22 1</specular>
+          </material>
+        </visual>
+      </link>
+      <plugin filename="gz-sim-pose-publisher-system"
+              name="gz::sim::systems::PosePublisher">
+        <publish_link_pose>false</publish_link_pose>
+        <publish_model_pose>true</publish_model_pose>
+        <update_frequency>60</update_frequency>
+      </plugin>
+    </model>
+
   </world>
 </sdf>
