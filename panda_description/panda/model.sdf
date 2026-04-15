@@ -752,29 +752,29 @@
     <plugin filename="gz-sim-detachable-joint-system"
             name="gz::sim::systems::DetachableJoint">
       <parent_link>panda_leftfinger</parent_link>
-      <child_model>blue_box</child_model>
+      <child_model>red_step_block</child_model>
       <child_link>link</child_link>
-      <detach_topic>/blue_box/detach</detach_topic>
-      <attach_topic>/blue_box/attach</attach_topic>
-      <output_topic>/blue_box/state</output_topic>
+      <detach_topic>/red_step_block/detach</detach_topic>
+      <attach_topic>/red_step_block/attach</attach_topic>
+      <output_topic>/red_step_block/state</output_topic>
     </plugin>
     <plugin filename="gz-sim-detachable-joint-system"
             name="gz::sim::systems::DetachableJoint">
       <parent_link>panda_leftfinger</parent_link>
-      <child_model>red_box</child_model>
+      <child_model>blue_cuboid</child_model>
       <child_link>link</child_link>
-      <detach_topic>/red_box/detach</detach_topic>
-      <attach_topic>/red_box/attach</attach_topic>
-      <output_topic>/red_box/state</output_topic>
+      <detach_topic>/blue_cuboid/detach</detach_topic>
+      <attach_topic>/blue_cuboid/attach</attach_topic>
+      <output_topic>/blue_cuboid/state</output_topic>
     </plugin>
     <plugin filename="gz-sim-detachable-joint-system"
             name="gz::sim::systems::DetachableJoint">
       <parent_link>panda_leftfinger</parent_link>
-      <child_model>green_box</child_model>
+      <child_model>green_cross_block</child_model>
       <child_link>link</child_link>
-      <detach_topic>/green_box/detach</detach_topic>
-      <attach_topic>/green_box/attach</attach_topic>
-      <output_topic>/green_box/state</output_topic>
+      <detach_topic>/green_cross_block/detach</detach_topic>
+      <attach_topic>/green_cross_block/attach</attach_topic>
+      <output_topic>/green_cross_block/state</output_topic>
     </plugin>
     <frame name='panda_hand_tcp_virtual_joint' attached_to='panda_hand'>
       <pose>0 0 0.10340000000000001 0 0 0</pose>

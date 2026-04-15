@@ -350,7 +350,7 @@
           </inertia>
         </inertial>
 
-        <- Introduced baseline training script for fine-tuning GPT-2 on PubMed Lower stage -->
+        <!-- Lower stage -->
         <collision name="lower_collision">
           <pose>0 0 -0.04 0 0 0</pose>
           <geometry>
@@ -381,7 +381,7 @@
           </material>
         </visual>
 
-        <- Introduced baseline training script for fine-tuning GPT-2 on PubMed Upper stage (offset to create a stepped profile) -->
+        <!-- Upper stage (offset to create a stepped profile) -->
         <collision name="upper_collision">
           <pose>0.01 0 0.04 0 0 0</pose>
           <geometry>
@@ -485,7 +485,7 @@
           </inertia>
         </inertial>
 
-        <- Introduced baseline training script for fine-tuning GPT-2 on PubMed Cross profile from two intersecting bars -->
+        <!-- Cross profile from two intersecting bars -->
         <collision name="x_arm_collision">
           <pose>0 0 0 0 0 0</pose>
           <geometry>
