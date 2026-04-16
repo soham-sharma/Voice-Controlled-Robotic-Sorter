@@ -173,11 +173,23 @@ class RobotInterface(Node):
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def log(self, msg: str):
-        """Append msg to the on-screen log buffer and the ROS logger."""
+    def _speak_thread(self, text: str):
+        try:
+            import pyttsx3
+            engine = pyttsx3.init()
+            engine.say(text)
+            engine.runAndWait()
+        except Exception as e:
+            self.get_logger().error(f"TTS error: {e}")
+
+    def log(self, msg: str, speak: bool = False):
+        """Append msg to the on-screen log buffer and the ROS logger. Optionally speak."""
         self.get_logger().info(msg)
         self.log_lines.append(msg)
         self.log_lines = self.log_lines[-12:]
+        if speak:
+            import threading
+            threading.Thread(target=self._speak_thread, args=(msg,), daemon=True).start()
 
     def publish_cloud(self, points: np.ndarray, frame_id: str = 'world'):
         """Publish an (N, 3) float32 array as PointCloud2 on /gpd_sample_cloud."""
@@ -330,7 +342,7 @@ class RobotInterface(Node):
                 self.gripper_pos[1] = pos
 
     def _on_gz_object_pose(self, name: str, msg: Pose):
-        self._detected_objects[name] = DetectedObject(pose=msg, dims=GZ_OBJECTS[name])
+        self._detected_objects[name] = DetectedObject(pose=msg, dims=gz_object_bbox(name))
 
     def _publish_table(self):
         table = CollisionObject()
@@ -350,33 +362,36 @@ class RobotInterface(Node):
                 Pose(position=Point(x=pos[0], y=pos[1], z=pos[2]),
                      orientation=Quaternion(w=1.0)))
 
-        cx, cy = CONTAINER['center_xy']
-        wh = CONTAINER['height']
-        wt = 0.02
-        hi = CONTAINER['width'] / 2.0
-        hj = CONTAINER['depth'] / 2.0
-        cz = CONTAINER['table_z'] + wh / 2.0
-        hw = hi + wt / 2.0
-        container = CollisionObject()
-        container.header.frame_id = 'world'
-        container.header.stamp = self.get_clock().now().to_msg()
-        container.id = 'container'
-        container.operation = CollisionObject.ADD
-        for dims, pos in [
-            ([hi * 2 + wt * 2, wt, wh], (cx,      cy - hj - wt/2, cz)),
-            ([hi * 2 + wt * 2, wt, wh], (cx,      cy + hj + wt/2, cz)),
-            ([wt, hj * 2,       wh],    (cx - hw, cy,              cz)),
-            ([wt, hj * 2,       wh],    (cx + hw, cy,              cz)),
-        ]:
-            container.primitives.append(
-                SolidPrimitive(type=SolidPrimitive.BOX, dimensions=dims))
-            container.primitive_poses.append(
-                Pose(position=Point(x=pos[0], y=pos[1], z=pos[2]),
-                     orientation=Quaternion(w=1.0)))
-
         scene = PlanningScene(is_diff=True)
         scene.world.collision_objects.append(table)
-        scene.world.collision_objects.append(container)
+
+        wt = 0.01  # wall thickness for bins
+
+        for bin_name, bin_params in BINS.items():
+            cx, cy = bin_params['center_xy']
+            wh = bin_params['height']
+            hi = bin_params['width'] / 2.0
+            hj = bin_params['depth'] / 2.0
+            cz = bin_params['table_z'] + wh / 2.0
+            hw = hi + wt / 2.0
+
+            container = CollisionObject()
+            container.header.frame_id = 'world'
+            container.header.stamp = self.get_clock().now().to_msg()
+            container.id = bin_name
+            container.operation = CollisionObject.ADD
+            for dims, pos in [
+                ([hi * 2 + wt * 2, wt, wh], (cx,      cy - hj - wt/2, cz)),
+                ([hi * 2 + wt * 2, wt, wh], (cx,      cy + hj + wt/2, cz)),
+                ([wt, hj * 2,       wh],    (cx - hw, cy,              cz)),
+                ([wt, hj * 2,       wh],    (cx + hw, cy,              cz)),
+            ]:
+                container.primitives.append(
+                    SolidPrimitive(type=SolidPrimitive.BOX, dimensions=dims))
+                container.primitive_poses.append(
+                    Pose(position=Point(x=pos[0], y=pos[1], z=pos[2]),
+                         orientation=Quaternion(w=1.0)))
+            scene.world.collision_objects.append(container)
         self._scene_pub.publish(scene)
 
     def _build_move_goal(self) -> MoveGroup.Goal:
