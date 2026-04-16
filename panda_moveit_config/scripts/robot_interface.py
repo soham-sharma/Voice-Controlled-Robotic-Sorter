@@ -42,20 +42,59 @@ class DetectedObject:
     dims: list  # [dx, dy, dz] in metres
 
 
-# Objects bridged from Gazebo: name → [dx, dy, dz] in metres
+# Objects bridged from Gazebo: name → list of sub-boxes
+# Each sub-box is {'dims': [dx, dy, dz], 'offset': [ox, oy, oz]}
+# offset is relative to the model origin (link frame)
 GZ_OBJECTS = {
-    'blue_box':  [0.06, 0.06, 0.10],
-    'red_box':   [0.06, 0.06, 0.13],
-    'green_box': [0.06, 0.06, 0.08],
+    'blue_cuboid': [
+        {'dims': [0.056, 0.056, 0.18], 'offset': [0.0, 0.0, 0.0]},
+    ],
+    'red_step_block': [
+        # Lower stage
+        {'dims': [0.06, 0.04, 0.08], 'offset': [0.0, 0.0, -0.04]},
+        # Upper stage
+        {'dims': [0.04, 0.04, 0.08], 'offset': [0.01, 0.0, 0.04]},
+    ],
+    'green_cross_block': [
+        # X-arm
+        {'dims': [0.065, 0.03, 0.14], 'offset': [0.0, 0.0, 0.0]},
+        # Y-arm
+        {'dims': [0.03, 0.065, 0.14], 'offset': [0.0, 0.0, 0.0]},
+    ],
 }
 
-# Container geometry (four-walled open box, table is the floor)
-CONTAINER = {
-    'center_xy':  (0.55, 0.25),   # (x, y) world frame
-    'width':   0.35,           # inner x dimension
-    'depth':   0.35,           # inner y dimension
-    'height':  0.12,           # wall height above table surface
-    'table_z': 0.27,           # table surface z
+def gz_object_bbox(name: str) -> list:
+    """Get the overall bounding box [dx, dy, dz] for an object."""
+    parts = GZ_OBJECTS[name]
+    if len(parts) == 1 and parts[0]['offset'] == [0.0, 0.0, 0.0]:
+        return list(parts[0]['dims'])
+    # Compute AABB from all sub-boxes
+    min_xyz = [float('inf')] * 3
+    max_xyz = [float('-inf')] * 3
+    for p in parts:
+        for i in range(3):
+            lo = p['offset'][i] - p['dims'][i] / 2.0
+            hi = p['offset'][i] + p['dims'][i] / 2.0
+            min_xyz[i] = min(min_xyz[i], lo)
+            max_xyz[i] = max(max_xyz[i], hi)
+    return [max_xyz[i] - min_xyz[i] for i in range(3)]
+
+# Container geometries (four-walled open box, table is the floor)
+BINS = {
+    'bin_a': {
+        'center_xy': (0.34, 0.30),
+        'width': 0.18,
+        'depth': 0.18,
+        'height': 0.10,
+        'table_z': 0.27,
+    },
+    'bin_b': {
+        'center_xy': (0.34, -0.30),
+        'width': 0.18,
+        'depth': 0.18,
+        'height': 0.10,
+        'table_z': 0.27,
+    }
 }
 
 
