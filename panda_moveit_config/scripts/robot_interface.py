@@ -364,9 +364,9 @@ class RobotInterface(Node):
 
         scene = PlanningScene(is_diff=True)
         scene.world.collision_objects.append(table)
-
+        
         wt = 0.01  # wall thickness for bins
-
+        
         for bin_name, bin_params in BINS.items():
             cx, cy = bin_params['center_xy']
             wh = bin_params['height']
@@ -374,7 +374,7 @@ class RobotInterface(Node):
             hj = bin_params['depth'] / 2.0
             cz = bin_params['table_z'] + wh / 2.0
             hw = hi + wt / 2.0
-
+            
             container = CollisionObject()
             container.header.frame_id = 'world'
             container.header.stamp = self.get_clock().now().to_msg()
@@ -392,6 +392,7 @@ class RobotInterface(Node):
                     Pose(position=Point(x=pos[0], y=pos[1], z=pos[2]),
                          orientation=Quaternion(w=1.0)))
             scene.world.collision_objects.append(container)
+
         self._scene_pub.publish(scene)
 
     def _build_move_goal(self) -> MoveGroup.Goal:
