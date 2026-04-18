@@ -15,6 +15,7 @@ install(PROGRAMS
   scripts/robot_interface.py
   scripts/gpd.py
   scripts/bt_pick_place.py
+  scripts/speech_node.py
   scripts/command_parser.py
   DESTINATION lib/${PROJECT_NAME}
 )
