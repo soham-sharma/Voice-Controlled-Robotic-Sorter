@@ -352,30 +352,26 @@ class MoveToDrop(ActionNode):
         )
 
 
-class CheckAllObjectsInContainer(py_trees.behaviour.Behaviour):
-    """Poll until the current object lands in the container, then check all.
+class CheckObjectSorted(py_trees.behaviour.Behaviour):
+    """Poll until the target object lands in the target bin.
 
-    RUNNING : current object not yet stable in container
-    FAILURE : timeout, or current object landed but others remain unsorted
-              (triggers RepeatAlways restart → next object)
-    SUCCESS : all objects confirmed in container → shutdown
+    RUNNING : current object not yet stable in bin
+    FAILURE : timeout
+    SUCCESS : object confirmed in bin
 
     Blackboard reads: /target_object_id (str)
-                      /container         (dict)
-
-    Note: reads live poses from robot._detected_objects (not the BB snapshot)
-    since it runs after the drop and needs current positions.
+                      /target_bin_id (str)
     """
 
     _TIMEOUT_SEC = 5.0
     _STABLE_TICKS = 5
 
     def __init__(self, robot: RobotInterface):
-        super().__init__('CheckAllObjectsInContainer')
+        super().__init__('CheckObjectSorted')
         self.robot = robot
-        self.bb = py_trees.blackboard.Client(name='CheckAllObjectsInContainer')
+        self.bb = py_trees.blackboard.Client(name='CheckObjectSorted')
         self.bb.register_key('/target_object_id', access=py_trees.common.Access.READ)
-        self.bb.register_key('/container',        access=py_trees.common.Access.READ)
+        self.bb.register_key('/target_bin_id',    access=py_trees.common.Access.READ)
 
     def initialise(self):
         self._deadline = (self.robot.get_clock().now().nanoseconds
@@ -385,14 +381,15 @@ class CheckAllObjectsInContainer(py_trees.behaviour.Behaviour):
     def _in_container_xy(self, pose) -> bool:
         if pose is None:
             return False
-        cx, cy = self.bb.container['center_xy']
-        hx, hy = self.bb.container['width'] / 2.0, self.bb.container['depth'] / 2.0
+        container = BINS[self.bb.target_bin_id]
+        cx, cy = container['center_xy']
+        hx, hy = container['width'] / 2.0, container['depth'] / 2.0
         return (abs(pose.position.x - cx) < hx and
                 abs(pose.position.y - cy) < hy)
 
     def update(self):
         if self.robot.get_clock().now().nanoseconds > self._deadline:
-            self.robot.log('[FAIL] CheckAllObjectsInContainer: timeout')
+            self.robot.log('[FAIL] CheckObjectSorted: timeout', speak=True)
             return py_trees.common.Status.FAILURE
 
         obj = self.robot._detected_objects.get(self.bb.target_object_id)
@@ -407,15 +404,8 @@ class CheckAllObjectsInContainer(py_trees.behaviour.Behaviour):
         if self._stable < self._STABLE_TICKS:
             return py_trees.common.Status.RUNNING
 
-        all_in = all(
-            self._in_container_xy(o.pose)
-            for o in self.robot._detected_objects.values()
-        )
-        if all_in:
-            self.robot.log('[OK]   Goal Status: SUCCESS — all objects sorted')
-            return py_trees.common.Status.SUCCESS
-
-        self.robot.log(f'[OK]   {self.bb.target_object_id} in container, others remain')
+        self.robot.log(f'[OK]   Goal Status: SUCCESS — {self.bb.target_object_id} sorted', speak=True)
+        # Return FAILURE to reset the Sequence(memory=True) so it can handle the next command
         return py_trees.common.Status.FAILURE
 
 
@@ -434,7 +424,7 @@ def build_tree(robot: RobotInterface) -> py_trees.behaviour.Behaviour:  # noqa: 
     reset.add_children([
         MoveToHome(robot),
         ReadScene(robot),
-        SelectObject(robot),
+        WaitForCommand(robot),
     ])
 
     grasp = py_trees.composites.Sequence(name='Grasp', memory=True)
@@ -455,99 +445,92 @@ def build_tree(robot: RobotInterface) -> py_trees.behaviour.Behaviour:  # noqa: 
         MoveToDrop(robot),
         OpenGripper(robot),
         DetachObject(robot),
-        CheckAllObjectsInContainer(robot),
+        CheckObjectSorted(robot),
     ])
 
+    # Wrap grasp in RequeueOnFailure so a missed/toppled pick automatically
+    # re-queues the command and the robot retries from the Reset phase.
+    resilient_grasp = RequeueOnFailure(grasp, robot)
+
     cycle = py_trees.composites.Sequence(name='PickPlaceCycle', memory=True)
-    cycle.add_children([reset, grasp, place])
+    cycle.add_children([reset, resilient_grasp, place])
 
     return RepeatAlways(name='RepeatAlways', child=cycle)
+
+
+class RequeueOnFailure(py_trees.decorators.Decorator):
+    """If the decorated subtree fails, push the current command back onto
+    the queue so the Reset→WaitForCommand phase will pick it up again
+    and the robot retries the same goal (e.g. after an object topples)."""
+
+    def __init__(self, child, robot: RobotInterface):
+        super().__init__(name='RequeueOnFailure', child=child)
+        self.robot = robot
+        self.bb = py_trees.blackboard.Client(name='RequeueOnFailure')
+        self.bb.register_key('/command_queue',    access=py_trees.common.Access.WRITE)
+        self.bb.register_key('/target_object_id', access=py_trees.common.Access.READ)
+        self.bb.register_key('/target_bin_id',    access=py_trees.common.Access.READ)
+
+    def update(self):
+        new_status = self.decorated.status
+        if new_status == py_trees.common.Status.FAILURE:
+            obj_id  = self.bb.target_object_id
+            bin_id  = self.bb.target_bin_id
+            if obj_id and bin_id:
+                self.robot.log(
+                    f'[WARN] Grasp failed for {obj_id} — requeueing command to retry'
+                )
+                self.bb.command_queue = [{'object': obj_id, 'bin': bin_id}]
+            return py_trees.common.Status.FAILURE
+        return new_status
 
 
 def init_blackboard():
     bb = py_trees.blackboard.Client(name='init')
     bb.register_key('/detected_objects',   access=py_trees.common.Access.WRITE)
-    bb.register_key('/container',          access=py_trees.common.Access.WRITE)
     bb.register_key('/target_object_id',   access=py_trees.common.Access.WRITE)
+    bb.register_key('/target_bin_id',      access=py_trees.common.Access.WRITE)
     bb.register_key('/grasp_proposals',    access=py_trees.common.Access.WRITE)
     bb.register_key('/drop_pose',          access=py_trees.common.Access.WRITE)
+    bb.register_key('/command_queue',      access=py_trees.common.Access.WRITE)
     bb.detected_objects = dict()
-    bb.container = CONTAINER
     bb.target_object_id = ''
+    bb.target_bin_id = ''
     bb.grasp_proposals = list()
     bb.drop_pose = None
+    bb.command_queue = []
 
-class SelectObject(py_trees.behaviour.Behaviour):
+class WaitForCommand(py_trees.behaviour.Behaviour):
     """
-    Select the next unplaced object and write its id to the blackboard.
-
-    An object is considered placed when its xy position is within the
-    container footprint (z is ignored).
-
-    Returns SUCCESS with /target_object_id written, or FAILURE if no
-    unplaced objects remain. Normal termination is handled by
-    CheckAllObjectsInContainer, so FAILURE here just indicates an unexpected
-    state, like no blocks being reachable.
+    Wait for a valid voice command from /command_queue.
     """
 
     def __init__(self, robot: RobotInterface):
-        super().__init__('SelectObject')
+        super().__init__('WaitForCommand')
         self.robot = robot
-        self.bb = py_trees.blackboard.Client(name='SelectObject')
-        self.bb.register_key('/detected_objects', access=py_trees.common.Access.READ)
-        self.bb.register_key('/container', access=py_trees.common.Access.READ)
+        self.bb = py_trees.blackboard.Client(name='WaitForCommand')
+        self.bb.register_key('/command_queue', access=py_trees.common.Access.WRITE)
         self.bb.register_key('/target_object_id', access=py_trees.common.Access.WRITE)
-
-    _MIN_REACH_M = 0.20
-    _MAX_REACH_M = 0.90
-    _MIN_X_M = 0.15
-    _MAX_ABS_Y_M = 0.75
-
-    def _in_container_xy(self, obj: DetectedObject) -> bool:
-        cx, cy = self.bb.container['center_xy']
-        hx = self.bb.container['width'] / 2.0
-        hy = self.bb.container['depth'] / 2.0
-        return (abs(obj.pose.position.x - cx) < hx and
-                abs(obj.pose.position.y - cy) < hy)
-
-    def _is_reachable(self, obj: DetectedObject) -> bool:
-        x = obj.pose.position.x
-        y = obj.pose.position.y
-        z = obj.pose.position.z
-        r = float(np.hypot(x, y))
-        table_z = self.bb.container['table_z']
-        return (
-            self._MIN_REACH_M <= r <= self._MAX_REACH_M and
-            x >= self._MIN_X_M and
-            abs(y) <= self._MAX_ABS_Y_M and
-            table_z - 0.03 <= z <= table_z + 0.35
-        )
+        self.bb.register_key('/target_bin_id', access=py_trees.common.Access.WRITE)
+        self.bb.register_key('/detected_objects', access=py_trees.common.Access.READ)
 
     def update(self):
-        objects = self.bb.detected_objects
-        if not objects:
-            self.robot.log('[FAIL] SelectObject: detected_objects is empty')
-            return py_trees.common.Status.FAILURE
+        if len(self.bb.command_queue) > 0:
+            cmd = self.bb.command_queue.pop(0)
+            target_id = cmd['object']
+            target_bin = cmd['bin']
 
-        candidates = []
-        for obj_id, obj in objects.items():
-            if self._in_container_xy(obj):
-                continue
-            if not self._is_reachable(obj):
-                continue
-            # Prefer the closest reachable object for easier arm motion.
-            dist = float(np.hypot(obj.pose.position.x, obj.pose.position.y))
-            candidates.append((dist, obj_id))
+            # Check if object is currently on the table
+            if target_id not in self.bb.detected_objects:
+                self.robot.log(f'[WARN] Object {target_id} not visible', speak=True)
+                return py_trees.common.Status.RUNNING
 
-        if not candidates:
-            self.bb.target_object_id = ''
-            self.robot.log('[FAIL] SelectObject: no reachable unsorted object')
-            return py_trees.common.Status.FAILURE
+            self.bb.target_object_id = target_id
+            self.bb.target_bin_id = target_bin
+            self.robot.log(f'[INFO] Goal received: {target_id} to {target_bin}', speak=True)
+            return py_trees.common.Status.SUCCESS
 
-        candidates.sort(key=lambda item: item[0])
-        self.bb.target_object_id = candidates[0][1]
-        self.robot.log(f'[OK]   SelectObject: target={self.bb.target_object_id}')
-        return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.RUNNING
 
 class ProposeGrasps(py_trees.behaviour.Behaviour):
     """
