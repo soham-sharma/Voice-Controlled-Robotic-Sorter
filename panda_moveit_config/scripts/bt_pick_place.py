@@ -135,9 +135,12 @@ class MoveToHome(ActionNode):
         # Detach and remove all objects
         for obj_id in ReadScene.ALL_OBJECTS:
             self.robot.detach_object(obj_id)
-        # Clear planning scene
+        # Clear planning scene: remove grasped objects AND bin walls so the
+        # arm can plan freely out of the bin.  Bins are static and will be
+        # re-published the next time _publish_table() is called (on ReadScene).
         scene = PlanningScene(is_diff=True)
-        for obj_id in ReadScene.ALL_OBJECTS:
+        ids_to_remove = list(ReadScene.ALL_OBJECTS) + list(BINS.keys())
+        for obj_id in ids_to_remove:
             co = CollisionObject()
             co.header.frame_id = 'world'
             co.header.stamp = self.robot.get_clock().now().to_msg()
