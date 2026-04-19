@@ -11,12 +11,15 @@ import rclpy
 import py_trees
 import py_trees_ros
 import numpy as np  # noqa: F401
+import tf_transformations
 
 from geometry_msgs.msg import Pose  # noqa: F401
 from moveit_msgs.msg import CollisionObject, PlanningScene
 from shape_msgs.msg import SolidPrimitive
+from std_msgs.msg import String
+import json
 
-from robot_interface import RobotInterface, CONTAINER, DetectedObject
+from robot_interface import RobotInterface, BINS, GZ_OBJECTS, DetectedObject
 from action_node import ActionNode, GripperNode
 from gpd import sample_cuboid_surface, detect_grasps, gpd_to_panda_pose, GraspCandidate  # noqa: F401
 
