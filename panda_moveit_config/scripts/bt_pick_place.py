@@ -40,7 +40,7 @@ class ReadScene(py_trees.behaviour.Behaviour):
     Blackboard writes: /detected_objects (dict[str, DetectedObject])
     """
 
-    ALL_OBJECTS = ['blue_box', 'red_box', 'green_box']
+    ALL_OBJECTS = ['red_step_block', 'blue_cuboid', 'green_cross_block']
 
     def __init__(self, robot: RobotInterface):
         super().__init__('ReadScene')
@@ -86,12 +86,27 @@ class ReadScene(py_trees.behaviour.Behaviour):
             co.header.stamp = self.robot.get_clock().now().to_msg()
             co.id = obj_id
             co.operation = CollisionObject.ADD
-            co.primitives.append(SolidPrimitive(type=SolidPrimitive.BOX, dimensions=obj.dims))
-            co.primitive_poses.append(obj.pose)
+            # Build rotation matrix from object orientation
+            q = (obj.pose.orientation.x, obj.pose.orientation.y,
+                 obj.pose.orientation.z, obj.pose.orientation.w)
+            R = tf_transformations.quaternion_matrix(q)[:3, :3]
+            for part in GZ_OBJECTS[obj_id]:
+                co.primitives.append(SolidPrimitive(
+                    type=SolidPrimitive.BOX, dimensions=part['dims']))
+                # Compute world-frame pose for this sub-box
+                off = np.array(part['offset'])
+                world_off = R @ off
+                part_pose = copy.deepcopy(obj.pose)
+                part_pose.position.x += float(world_off[0])
+                part_pose.position.y += float(world_off[1])
+                part_pose.position.z += float(world_off[2])
+                co.primitive_poses.append(part_pose)
             scene.world.collision_objects.append(co)
             self.robot.log(f'[INFO] ReadScene: {obj_id} at '
                             f'({obj.pose.position.x:.3f}, {obj.pose.position.y:.3f}, {obj.pose.position.z:.3f})')
         self.robot._scene_pub.publish(scene)
+        # Re-publish table + bin walls that MoveToHome cleared for escape planning.
+        self.robot._publish_table()
         self.bb.detected_objects = dict(self.robot._detected_objects)
         return py_trees.common.Status.SUCCESS
 
