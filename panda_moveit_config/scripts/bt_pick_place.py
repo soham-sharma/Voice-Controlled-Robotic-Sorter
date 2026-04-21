@@ -669,7 +669,7 @@ class ProposeDropPose(py_trees.behaviour.Behaviour):
         super().__init__('ProposeDropPose')
         self.robot = robot
         self.bb = py_trees.blackboard.Client(name='ProposeDropPose')
-        self.bb.register_key('/container', access=py_trees.common.Access.READ)
+        self.bb.register_key('/target_bin_id', access=py_trees.common.Access.READ)
         self.bb.register_key('/detected_objects', access=py_trees.common.Access.READ)
         self.bb.register_key('/target_object_id', access=py_trees.common.Access.READ)
         self.bb.register_key('/drop_pose', access=py_trees.common.Access.WRITE)
@@ -684,7 +684,7 @@ class ProposeDropPose(py_trees.behaviour.Behaviour):
     ]
 
     def update(self):
-        container = self.bb.container
+        container = BINS[self.bb.target_bin_id]
         target_id = self.bb.target_object_id
         obj = self.bb.detected_objects.get(target_id)
 
@@ -736,9 +736,20 @@ class ProposeDropPose(py_trees.behaviour.Behaviour):
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
+def command_callback(msg):
+    bb = py_trees.blackboard.Client(name='CommandSub')
+    bb.register_key('/command_queue', access=py_trees.common.Access.WRITE)
+    try:
+        cmd = json.loads(msg.data)
+        bb.command_queue.append(cmd)
+    except json.JSONDecodeError:
+        pass
+
 def main():
     rclpy.init()
     robot = RobotInterface()
+
+    robot.create_subscription(String, '/sort_command', command_callback, 10)
 
     init_blackboard()
     root = build_tree(robot)
