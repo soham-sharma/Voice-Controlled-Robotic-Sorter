@@ -548,19 +548,20 @@ class ProposeGrasps(py_trees.behaviour.Behaviour):
         self.robot = robot
         self.bb = py_trees.blackboard.Client(name='ProposeGrasps')
         self.bb.register_key('/detected_objects', access=py_trees.common.Access.READ)
-        self.bb.register_key('/container', access=py_trees.common.Access.READ)
         self.bb.register_key('/target_object_id', access=py_trees.common.Access.READ)
         self.bb.register_key('/grasp_proposals', access=py_trees.common.Access.WRITE)
 
     _N_SURFACE_POINTS = 2500
     _MAX_OUTPUT_PROPOSALS = 8
-    _MIN_APPROACH_DOWN_Z = 0.20
-    _MIN_GRASP_Z_CLEARANCE = 0.01
-    _MIN_TCP_Z_CLEARANCE = 0.015
-    _MIN_REACH_M = 0.20
-    _MAX_REACH_M = 0.90
-    _MIN_X_M = 0.15
-    _MAX_ABS_Y_M = 0.75
+    # Relaxed: accept approaches up to 15° off-vertical (was 20°)
+    _MIN_APPROACH_DOWN_Z = 0.15
+    # Allow grasping even when object toppled (was 0.01 above table)
+    _MIN_GRASP_Z_CLEARANCE = 0.0
+    _MIN_TCP_Z_CLEARANCE = 0.005
+    _MIN_REACH_M = 0.18
+    _MAX_REACH_M = 0.95
+    _MIN_X_M = 0.12
+    _MAX_ABS_Y_M = 0.80
 
     def initialise(self):
         self._retries = 0
@@ -571,7 +572,7 @@ class ProposeGrasps(py_trees.behaviour.Behaviour):
         y = pose.position.y
         z = pose.position.z
         r = float(np.hypot(x, y))
-        table_z = self.bb.container['table_z']
+        table_z = BINS['bin_a']['table_z']
         return (
             self._MIN_REACH_M <= r <= self._MAX_REACH_M and
             x >= self._MIN_X_M and
@@ -597,16 +598,28 @@ class ProposeGrasps(py_trees.behaviour.Behaviour):
             obj.pose.orientation.z,
             obj.pose.orientation.w,
         )
-        cloud = sample_cuboid_surface(
-            center=center,
-            dims=obj.dims,
-            n_points=self._N_SURFACE_POINTS,
-            orientation=orientation,
-        )
+        # Sample composite point cloud from all sub-boxes
+        parts = GZ_OBJECTS[obj_id]
+        pts_per_part = max(100, self._N_SURFACE_POINTS // len(parts))
+        all_clouds = []
+        for part in parts:
+            part_center = (
+                center[0] + part['offset'][0],
+                center[1] + part['offset'][1],
+                center[2] + part['offset'][2],
+            )
+            sub_cloud = sample_cuboid_surface(
+                center=part_center,
+                dims=part['dims'],
+                n_points=pts_per_part,
+                orientation=orientation,
+            )
+            all_clouds.append(sub_cloud)
+        cloud = np.vstack(all_clouds)
         self.robot.publish_cloud(cloud)
 
         candidates = detect_grasps(cloud)
-        table_z = self.bb.container['table_z']
+        table_z = BINS['bin_a']['table_z']
         valid: list[Pose] = []
         for cand in candidates:
             approach = cand.R[:, 0]
