@@ -519,17 +519,17 @@ class WaitForCommand(py_trees.behaviour.Behaviour):
             cmd = self.bb.command_queue.pop(0)
             target_id = cmd['object']
             target_bin = cmd['bin']
-
+            
             # Check if object is currently on the table
             if target_id not in self.bb.detected_objects:
                 self.robot.log(f'[WARN] Object {target_id} not visible', speak=True)
                 return py_trees.common.Status.RUNNING
-
+                
             self.bb.target_object_id = target_id
             self.bb.target_bin_id = target_bin
             self.robot.log(f'[INFO] Goal received: {target_id} to {target_bin}', speak=True)
             return py_trees.common.Status.SUCCESS
-
+            
         return py_trees.common.Status.RUNNING
 
 class ProposeGrasps(py_trees.behaviour.Behaviour):
@@ -748,7 +748,7 @@ def command_callback(msg):
 def main():
     rclpy.init()
     robot = RobotInterface()
-
+    
     robot.create_subscription(String, '/sort_command', command_callback, 10)
 
     init_blackboard()
