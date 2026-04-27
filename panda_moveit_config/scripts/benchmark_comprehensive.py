@@ -75,3 +75,104 @@ class BenchmarkComprehensiveNode(Node):
 				'level': msg.level,
 				'msg': msg.msg
 			})
+
+	def analyze_logs(self, start_time):
+		metrics = {
+			"grasp_time": None,
+			"place_time": None,
+			"retries": 0,
+			"total_time": None,
+			"grasp_failures": 0
+		}
+
+		t_start = start_time
+		t_grasp = None
+		t_place = None
+
+		for log in self.current_task_logs:
+			if "Goal received" in log['msg'] and t_start == start_time:
+				t_start = log['time']
+			if "CheckObjectIsAttached: gap" in log['msg'] and "[OK]" in log['msg']:
+				t_grasp = log['time']
+			if "DetachObject:" in log['msg']:
+				t_place = log['time']
+			if "requeueing command to retry" in log['msg']:
+				metrics["retries"] += 1
+			if "no valid grasp" in log['msg'] or "no valid grasps" in log['msg']:
+				metrics["grasp_failures"] += 1
+
+		if t_grasp and t_start:
+			metrics["grasp_time"] = t_grasp - t_start
+		if t_place and t_grasp:
+			metrics["place_time"] = t_place - t_grasp
+		if t_place and t_start:
+			metrics["total_time"] = t_place - t_start
+
+		return metrics
+
+	def run_benchmark(self):
+		tasks = [
+			("red_step_block", "bin_a", "move the red block to bin alpha"),
+			("blue_cuboid", "bin_b", "move the blue cuboid to bin bravo"),
+			("green_cross_block", "bin_b", "move the green cross block to bin bravo"),
+		]
+
+		run_results = []
+
+		self.get_logger().info("Waiting for initial object poses...")
+		time.sleep(2.0)
+		rclpy.spin_once(self, timeout_sec=2.0)
+
+		for obj, bin_name, command in tasks:
+			self.get_logger().info(f"--- Starting task: {command} ---")
+			self.current_task_logs = []
+
+			msg = String()
+			msg.data = command
+			self.publisher.publish(msg)
+
+			start_time = time.time()
+			success = False
+			timeout = 120.0
+
+			while time.time() - start_time < timeout:
+				rclpy.spin_once(self, timeout_sec=0.1)
+				if self.in_bin(obj, bin_name):
+					stable = True
+					for _ in range(20):
+						rclpy.spin_once(self, timeout_sec=0.1)
+						if not self.in_bin(obj, bin_name):
+							stable = False
+							break
+
+					if stable:
+						success = True
+						break
+
+			elapsed = time.time() - start_time
+
+			# Spin a bit more to catch trailing logs
+			t_end = time.time()
+			while time.time() - t_end < 2.0:
+				rclpy.spin_once(self, timeout_sec=0.1)
+
+			metrics = self.analyze_logs(start_time)
+
+			if success:
+				self.get_logger().info(f"[SUCCESS] {obj} sorted to {bin_name} in {elapsed:.2f}s")
+			else:
+				self.get_logger().info(f"[FAILURE] {obj} not sorted to {bin_name} within timeout")
+
+			task_result = {
+				"object": obj,
+				"bin": bin_name,
+				"command": command,
+				"success": success,
+				"overall_time": elapsed,
+				"retries": metrics["retries"]
+			}
+			run_results.append(task_result)
+
+			time.sleep(3.0)
+
+		self.save_and_generate_reports(run_results)
