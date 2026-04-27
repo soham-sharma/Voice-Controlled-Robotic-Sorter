@@ -176,3 +176,135 @@ class BenchmarkComprehensiveNode(Node):
 			time.sleep(3.0)
 
 		self.save_and_generate_reports(run_results)
+
+	def save_and_generate_reports(self, run_results):
+		os.makedirs(RESULTS_DIR, exist_ok=True)
+
+		# Save individual run
+		timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+		run_file = os.path.join(RESULTS_DIR, f"run_{timestamp}.json")
+		with open(run_file, 'w') as f:
+			json.dump(run_results, f, indent=4)
+
+		# Append to all results
+		all_results = []
+		if os.path.exists(ALL_RESULTS_FILE):
+			with open(ALL_RESULTS_FILE, 'r') as f:
+				try:
+					all_results = json.load(f)
+				except json.JSONDecodeError:
+					pass
+
+		# Add a run identifier
+		run_id = len(set(r.get('run_id', 0) for r in all_results)) + 1
+		for r in run_results:
+			r['run_id'] = run_id
+			all_results.append(r)
+
+		with open(ALL_RESULTS_FILE, 'w') as f:
+			json.dump(all_results, f, indent=4)
+
+		self.generate_latex_table(all_results)
+		self.generate_plots(all_results)
+
+		self.get_logger().info(f"=== Saved run results to {run_file} ===")
+		self.get_logger().info(f"=== Regenerated reports in {RESULTS_DIR} ===")
+
+	def generate_latex_table(self, all_results):
+		# Group by object
+		stats = {}
+		for r in all_results:
+			obj = r['object']
+			if obj not in stats:
+				stats[obj] = {'trials': 0, 'successes': 0, 'times': [], 'retries': 0}
+			stats[obj]['trials'] += 1
+			if r['success']:
+				stats[obj]['successes'] += 1
+				if r['overall_time'] is not None:
+					stats[obj]['times'].append(r['overall_time'])
+			stats[obj]['retries'] += r['retries']
+
+		latex = [
+			"\\begin{table}[h]",
+			"\\centering",
+			"\\begin{tabular}{|l|c|c|c|c|}",
+			"\\hline",
+			"\\textbf{Object} & \\textbf{Success Rate} & \\textbf{Avg Time (s)} & \\textbf{Total Retries} & \\textbf{Trials} \\\\",
+			"\\hline"
+		]
+
+		for obj, s in stats.items():
+			rate = (s['successes'] / s['trials']) * 100 if s['trials'] > 0 else 0
+			avg_time = sum(s['times']) / len(s['times']) if s['times'] else 0.0
+			latex.append(f"{obj.replace('_', '\\_')} & {rate:.1f}\\% & {avg_time:.2f} & {s['retries']} & {s['trials']} \\\\")
+
+		latex.extend([
+			"\\hline",
+			"\\end{tabular}",
+			"\\caption{Robotic Sorting Benchmark Results over Multiple Runs}",
+			"\\label{tab:benchmark_results}",
+			"\\end{table}"
+		])
+
+		with open(os.path.join(RESULTS_DIR, "benchmark_table.tex"), 'w') as f:
+			f.write("\n".join(latex))
+
+	def generate_plots(self, all_results):
+		objects = list(set(r['object'] for r in all_results))
+
+		# 2. Task Consistency (Box and Whisker Plot)
+		fig, ax = plt.subplots(figsize=(8, 6))
+		box_data = []
+		for obj in objects:
+			times = [r['overall_time'] for r in all_results if r['object'] == obj and r['success'] and r['overall_time'] is not None]
+			box_data.append(times if times else [0])
+
+		ax.boxplot(box_data, labels=[o.replace('_', ' ').title() for o in objects])
+		ax.set_ylabel('Total Execution Time (s)')
+		ax.set_title('Task Execution Time Consistency')
+		plt.tight_layout()
+		plt.savefig(os.path.join(RESULTS_DIR, "benchmark_consistency.png"), dpi=300)
+		plt.close()
+
+		# 3. Robustness Breakdown (Stacked Success/Retry/Fail Bar)
+		fig, ax = plt.subplots(figsize=(8, 6))
+		first_try = []
+		retry_success = []
+		fail = []
+
+		for obj in objects:
+			ft = len([r for r in all_results if r['object'] == obj and r['success'] and r['retries'] == 0])
+			rs = len([r for r in all_results if r['object'] == obj and r['success'] and r['retries'] > 0])
+			f = len([r for r in all_results if r['object'] == obj and not r['success']])
+			first_try.append(ft)
+			retry_success.append(rs)
+			fail.append(f)
+
+		bar_width = 0.5
+		ax.bar(objects, first_try, bar_width, label='First-Try Success', color='mediumseagreen')
+		ax.bar(objects, retry_success, bar_width, bottom=first_try, label='Success After Retry', color='goldenrod')
+		bottom_fail = [first_try[i] + retry_success[i] for i in range(len(objects))]
+		ax.bar(objects, fail, bar_width, bottom=bottom_fail, label='Failed', color='tomato')
+
+		ax.set_ylabel('Count')
+		ax.set_title('Robustness Breakdown by Object')
+		ax.legend()
+		ax.set_xticklabels([o.replace('_', ' ').title() for o in objects], rotation=15)
+
+		plt.tight_layout()
+		plt.savefig(os.path.join(RESULTS_DIR, "benchmark_robustness.png"), dpi=300)
+		plt.close()
+
+def main(args=None):
+	rclpy.init(args=args)
+	node = BenchmarkComprehensiveNode()
+	try:
+		node.run_benchmark()
+	except KeyboardInterrupt:
+		pass
+	finally:
+		node.destroy_node()
+		rclpy.shutdown()
+
+if __name__ == '__main__':
+	main()
