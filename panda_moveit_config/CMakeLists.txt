@@ -16,6 +16,7 @@ install(PROGRAMS
   scripts/gpd.py
   scripts/bt_pick_place.py
   scripts/benchmark.py
+  scripts/benchmark_comprehensive.py
   scripts/speech_node.py
   scripts/command_parser.py
   DESTINATION lib/${PROJECT_NAME}
